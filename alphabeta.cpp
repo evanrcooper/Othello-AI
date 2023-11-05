@@ -4,8 +4,6 @@
 #include "heuristic.h"
 #include "timeKeep.h"
 
-#define RANDOMNESS_FACTOR 1
-
 using namespace std;
 
 struct valMovePair minimaxValue(unsigned char *board, const unsigned char &depth, int alpha, int beta, bool *timeUp, const unsigned long long &X) {
@@ -126,9 +124,24 @@ unsigned char iterativeDeepening(unsigned char *board) {
   bool timeUp = false;
   int maxTimeMillis = 1000*(board[16] & 0b01111111);
   unsigned long long startTime = timeSinceEpochMillisec();
+  unsigned char moves[9];
+  getLegalMoves(board, moves);
+  if (moves[8] == 1) {
+    for (unsigned char byte = 0; byte < 8; byte++) {
+      for (unsigned char bit = 0; bit < 8; bit++) {
+        if (moves[byte] & (0b10000000 >> bit)) {
+          cout << "Depth Searched: 0 (Only One Legal Move)\n";
+          cout << "Time Taken By AI (seconds): " << static_cast<double>(millisecondsSinceX(startTime))/1000 << "\n";
+          return (byte << 3) + bit;
+        }
+      }
+    }
+    return 64;
+  }
   while ((millisecondsSinceX(startTime) < (maxTimeMillis >> 1)) && (!timeUp)) {
     tempMove = minimaxAlphaBeta(board, i, &timeUp, startTime);
     if (timeUp) {
+      i++;
       break;
     }
     if (tempMove != 64) {
@@ -136,7 +149,7 @@ unsigned char iterativeDeepening(unsigned char *board) {
     }
     i++;
   }
-  cout << "Depth Searched: " << i << "\n";
+  cout << "Depth Searched: " << i-1 << "\n";
   cout << "Time Taken By AI (seconds): " << static_cast<double>(millisecondsSinceX(startTime))/1000 << "\n";
   return curBestMove;
 }

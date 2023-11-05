@@ -22,7 +22,6 @@ NOTES
 #include <time.h>  
 #include "board.h"
 #include "alphabeta.h"
-#include "heuristic.h"
 
 using namespace std;
 
@@ -86,6 +85,10 @@ int main() {
       int selection;
       cout << ((b[16] & 0b10000000) ? "Black's" : "White's") << " Move: ";
       cin >> selection;
+      while (selection > count || selection < 0) {
+        cout << "Inavlid Move... New Move: ";
+        cin >> selection;
+      }
       // int heuristicBefore = heuristic(b);
       makeMove(b, moveSelection[selection-1]);
       // if (printHeuristic) {
@@ -109,7 +112,6 @@ bool getPlayerType(const char &player) {
     case 'n':
       return false;
     default:
-      cout << "\n\n" << "Invalid Char" << "\n\n\n";
-      terminate();
+      return false;
   }
 }

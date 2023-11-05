@@ -5,3 +5,5 @@ int weight(const unsigned char *board, const unsigned char &position, const int 
 int heuristic1(unsigned char *board);
 
 int heuristic2(unsigned char *board);
+
+int heuristic3(unsigned char *board);

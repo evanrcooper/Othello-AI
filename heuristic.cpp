@@ -3,6 +3,7 @@
 #include "heuristic.h"
 #include "board.h"
 #include "weights.h"
+#include <vector>
 
 int heuristic(unsigned char *board) {
     int h1 = heuristic1(board);
@@ -10,7 +11,8 @@ int heuristic(unsigned char *board) {
         return h1;
     }
     int h2 = heuristic2(board);
-    return (H1_WEIGHT*h1 + H2_WEIGHT*h2) >> SHIFT;
+    int h3 = heuristic3(board);
+    return (H1_WEIGHT*h1 + H2_WEIGHT*h2 + H3_WEIGHT*h3) >> SHIFT;
 }
 
 int heuristic1(unsigned char *board) {
@@ -23,7 +25,7 @@ int heuristic1(unsigned char *board) {
                 totalWhite++;
                 break;
             case 2:
-                totalWhite++;
+                totalBlack++;
                 break;
             default:
                 break;
@@ -64,12 +66,20 @@ int heuristic1(unsigned char *board) {
     if (!(board[16] & 0b10000000)) {
         moveDiff *= -1;
     }
-    diff += (5*(bl - wh)) >> 2;
-    diff += ((97 - totalPieces) >> 2)*moveDiff;
-    diff += (moveDiff >> 1)*MOVES_WEIGHT;
+    if (totalPieces >= MIDGAME) {
+        if (totalBlack > totalWhite) {
+            return (INT_MAX >> 2) + PIECE_DIFF_WEIGHT*(totalBlack - totalWhite) + MOVES_WEIGHT*moveDiff;
+        } else if (totalBlack < totalWhite) {
+            return (INT_MIN >> 2) + PIECE_DIFF_WEIGHT*(totalWhite - totalBlack) + MOVES_WEIGHT*moveDiff;
+        } else {
+            return MOVES_WEIGHT*moveDiff;
+        }
+    }
+    diff += (4*(bl - wh)) >> 2;
+    diff += moveDiff*MOVES_WEIGHT*((97 - totalPieces) >> 2);
     diff += totalBlack*PIECE_DIFF_WEIGHT;
     diff -= totalWhite*PIECE_DIFF_WEIGHT;
-    return (diff >> 1);
+    return diff;
 }
 
 int heuristic2(unsigned char *board) {
@@ -111,74 +121,138 @@ int heuristic2(unsigned char *board) {
         }
     };
     if (!(board[16] & 0b10000000)) {
-        swap(movesBl, movesWh);
+        int temp = movesBl;
+        movesBl = movesWh;
+        movesWh = temp;
     }
     total += MOVES_WEIGHT*(((movesBl - movesWh) << 8) / (movesBl + movesWh));
     total += PIECE_DIFF_WEIGHT*(countBl - countWh);
     return (total << 1);
 }
 
-int weight(const unsigned char *board, const unsigned char &position, const int &piecesOnBoard, const unsigned char &turn) {
-    if (piecesOnBoard < ENDGAME) {
-        unsigned char posMod8 = position & 0b00000111;
-        if (position == 0 || position == 7 || position == 56 || position == 63) {
-            return CORNER;
-        } else if (position == 1 || position == 8 || position == 9) { // around top left corner
-            if (getPieceAtPos(board, 0) == turn) {
-                return NEAR_CORNER_POSITIVE;
-            } else {
-                return NEAR_CORNER_NEGATIVE;
-            }
-        } else if (position == 6 || position == 14 || position == 15) { // around top right corner
-            if (getPieceAtPos(board, 7) == turn) {
-                return NEAR_CORNER_POSITIVE;
-            } else {
-                return NEAR_CORNER_NEGATIVE;
-            }
-        } else if (position == 48 || position == 49 || position == 57) { // around bottom left
-            if (getPieceAtPos(board, 56) == turn) {
-                return NEAR_CORNER_POSITIVE;
-            } else {
-                return NEAR_CORNER_NEGATIVE;
-            }
-        } else if (position == 54 || position == 55 || position == 62) { // around bottom right
-            if (getPieceAtPos(board, 63) == turn) {
-                return NEAR_CORNER_POSITIVE;
-            } else {
-                return NEAR_CORNER_NEGATIVE;
-            }
-        } else if (position <= 6) { // top edge
-            if (getPieceAtPos(board, 0) == turn || getPieceAtPos(board, 7) == turn) {
-                return EDGE_POSITIVE;
-            }
-            return EDGE_NEGATIVE;
-        } else if (posMod8 == 0) { // left edge
-            if (getPieceAtPos(board, 0) == turn || getPieceAtPos(board, 56) == turn) {
-                return EDGE_POSITIVE;
-            }
-            return EDGE_NEGATIVE;
-        } else if (position >= 56) { // bottom edge
-            if (getPieceAtPos(board, 56) == turn || getPieceAtPos(board, 63) == turn) {
-                return EDGE_POSITIVE;
-            }
-            return EDGE_NEGATIVE;
-        } else if (posMod8 == 7) { // right edge
-            if (getPieceAtPos(board, 7) == turn || getPieceAtPos(board, 63) == turn) {
-                return EDGE_POSITIVE;
-            }
-            return EDGE_NEGATIVE;
-        } else if (position <= 17) { // top large inner band
-            return LARGE_INNER_BAND;
-        } else if (posMod8 == 1) { // left large inner band
-            return LARGE_INNER_BAND;
-        } else if (position >= 46) { // bottom large inner band
-            return LARGE_INNER_BAND;
-        } else if (posMod8 == 6) { // right large inner band
-            return LARGE_INNER_BAND;
-        } else if (position != 27 && position != 28 && position != 35 && position != 36) { // small inner band
-            return SMALL_INNER_BAND;
+int heuristic3(unsigned char *board) {
+    int w;
+    int total = 0;
+    int totalPieces = 0;
+    int totalWhite = 0;
+    int weightWh = 0;
+    int weightBl = 0;
+    int totalBlack = 0;
+    for (int i = 0; i < 64; i++) {
+        switch (getPieceAtPos(board, i)) {
+            case 1:
+                totalWhite++;
+                weightWh += spaces[i];
+                break;
+            case 2:
+                totalBlack++;
+                weightBl += spaces[i];
+                break;
+            default:
+                break;
         }
-        return CENTER;
+        totalPieces = totalBlack + totalWhite;
     }
-    return 0;
+    if (weightBl + weightWh != 0) {
+        w = ((weightBl - weightWh) << 8) / (weightBl + weightWh);
+    } else {
+        w = 0;
+    }
+    int movesBl = getLegalMoveCount(board);
+    switchTurn(board);
+    int movesWh = getLegalMoveCount(board);
+    switchTurn(board);
+    if (!(board[16] & 0b10000000)) {
+        int temp = movesBl;
+        movesBl = movesWh;
+        movesWh = temp;
+    }
+    if ((movesBl == 0 && movesWh == 0) || totalBlack + totalWhite >= ENDGAME) {
+        if (totalBlack > totalWhite) {
+            return (INT_MAX - 64) + (totalBlack - totalWhite);
+        } else if (totalBlack < totalWhite) {
+            return (INT_MIN + 64) + (totalWhite - totalBlack);
+        } else {
+            return 0;
+        }
+    };
+    int m = ((movesBl - movesWh) << 7) / (movesBl + movesWh);
+    int p = ((totalBlack - totalWhite) << 7) / (totalBlack + totalWhite);
+    int cl = 0;
+    for (int i = 0; i < 64; i++) {
+        switch (getPieceAtPos(board, i)) {
+            case 1:
+                cl += weight(board, i, totalPieces, ((board[16] & 0b10000000) ? 2 : 1));
+                continue;
+            case 2:
+                cl -= weight(board, i, totalPieces, ((board[16] & 0b10000000) ? 2 : 1));
+                continue;
+            default:
+                continue;
+        }
+    }
+    int score = (10 * p) + (801.724 * cl) + (78.922 * m) + + (17 * w);
+    return score;
+}
+
+int weight(const unsigned char *board, const unsigned char &position, const int &piecesOnBoard, const unsigned char &turn) {
+    unsigned char posMod8 = position & 0b00000111;
+    if (position == 0 || position == 7 || position == 56 || position == 63) {
+        return CORNER;
+    } else if (position == 1 || position == 8 || position == 9) { // around top left corner
+        if (getPieceAtPos(board, 0) == turn) {
+            return NEAR_CORNER_POSITIVE;
+        } else {
+            return NEAR_CORNER_NEGATIVE;
+        }
+    } else if (position == 6 || position == 14 || position == 15) { // around top right corner
+        if (getPieceAtPos(board, 7) == turn) {
+            return NEAR_CORNER_POSITIVE;
+        } else {
+            return NEAR_CORNER_NEGATIVE;
+        }
+    } else if (position == 48 || position == 49 || position == 57) { // around bottom left
+        if (getPieceAtPos(board, 56) == turn) {
+            return NEAR_CORNER_POSITIVE;
+        } else {
+            return NEAR_CORNER_NEGATIVE;
+        }
+    } else if (position == 54 || position == 55 || position == 62) { // around bottom right
+        if (getPieceAtPos(board, 63) == turn) {
+            return NEAR_CORNER_POSITIVE;
+        } else {
+            return NEAR_CORNER_NEGATIVE;
+        }
+    } else if (position <= 6) { // top edge
+        if (getPieceAtPos(board, 0) == turn || getPieceAtPos(board, 7) == turn) {
+            return EDGE_POSITIVE;
+        }
+        return EDGE_NEGATIVE;
+    } else if (posMod8 == 0) { // left edge
+        if (getPieceAtPos(board, 0) == turn || getPieceAtPos(board, 56) == turn) {
+            return EDGE_POSITIVE;
+        }
+        return EDGE_NEGATIVE;
+    } else if (position >= 56) { // bottom edge
+        if (getPieceAtPos(board, 56) == turn || getPieceAtPos(board, 63) == turn) {
+            return EDGE_POSITIVE;
+        }
+        return EDGE_NEGATIVE;
+    } else if (posMod8 == 7) { // right edge
+        if (getPieceAtPos(board, 7) == turn || getPieceAtPos(board, 63) == turn) {
+            return EDGE_POSITIVE;
+        }
+        return EDGE_NEGATIVE;
+    } else if (position <= 17) { // top large inner band
+        return LARGE_INNER_BAND;
+    } else if (posMod8 == 1) { // left large inner band
+        return LARGE_INNER_BAND;
+    } else if (position >= 46) { // bottom large inner band
+        return LARGE_INNER_BAND;
+    } else if (posMod8 == 6) { // right large inner band
+        return LARGE_INNER_BAND;
+    } else if (position != 27 && position != 28 && position != 35 && position != 36) { // small inner band
+        return SMALL_INNER_BAND;
+    }
+    return CENTER;
 }
