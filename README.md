@@ -31,6 +31,9 @@ Example Board File (Starting Board With Black's Turn and a 5 Second Computer Tim
 > 1\
 > 5
 
+## Playing the Game
+Note that when prompted to enter "Y/N" if anything other than Y or y is entered the program will take that as N.
+
 ## How To Use (`Linux`)
 Build:
 - > <span style="color:lightgreen">$</span><span style="color:silver"> make</span>
